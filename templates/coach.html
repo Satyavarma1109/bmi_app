@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Coach</title>
+    <style>
+        body { font-family: Arial; max-width: 720px; margin: 30px auto; padding: 12px; }
+
+        .top-actions { margin: 12px 0 16px 0; display: flex; gap: 10px; flex-wrap: wrap; }
+        .link-btn {
+            display: inline-block;
+            padding: 10px 14px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #000;
+            background: #fff;
+        }
+        .link-btn.secondary { border-color: #bbb; color: #333; }
+        .link-btn.danger { border-color: #d9534f; color: #d9534f; }
+
+        select, button { width: 100%; padding: 10px; margin-top: 8px; }
+
+        .error { margin-top: 12px; padding: 10px; border: 1px solid #f2b8b5; border-radius: 8px; color: #d9534f; }
+
+        .week-nav { margin: 16px 0 10px 0; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .week-btn {
+            padding: 8px 12px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #000;
+            background: #fff;
+            font-size: 14px;
+        }
+        .week-btn.active { background: #333; color: #fff; }
+
+        .card { margin-top: 14px; border: 1px solid #ddd; border-radius: 10px; padding: 14px; background: #fafafa; }
+        .card h3 { margin: 0 0 10px 0; }
+
+        .section { margin-top: 12px; }
+        .section-title { font-weight: bold; margin-bottom: 6px; }
+
+        ul { margin: 6px 0 0 18px; }
+        li { margin: 4px 0; }
+
+        .quote {
+            margin-top: 14px;
+            padding: 12px;
+            border-left: 4px solid #333;
+            background: #fff;
+            border-radius: 8px;
+            font-style: italic;
+        }
+
+        .pager { margin-top: 12px; display: flex; gap: 10px; }
+        .pager a { flex: 1; text-align: center; }
+
+        .muted { color: #666; font-size: 0.95rem; }
+    </style>
+</head>
+<body>
+
+    <h2>AI Fitness Coach</h2>
+    <p class="muted">Generate a 4-week plan based on your latest BMI. Then navigate week-by-week.</p>
+
+    <div class="top-actions">
+        <a class="link-btn secondary" href="{{ url_for('bmi_page') }}">← Back to BMI</a>
+        <a class="link-btn secondary" href="{{ url_for('dashboard') }}">Dashboard</a>
+        <a class="link-btn danger" href="{{ url_for('logout') }}">Logout</a>
+    </div>
+
+    <form method="POST">
+        <label><strong>Goal</strong></label>
+        <select name="goal">
+            <option value="lose weight" {% if session.get('coach_goal') == 'lose weight' %}selected{% endif %}>Lose Weight</option>
+            <option value="maintain weight" {% if session.get('coach_goal') == 'maintain weight' %}selected{% endif %}>Maintain Weight</option>
+            <option value="gain weight" {% if session.get('coach_goal') == 'gain weight' %}selected{% endif %}>Gain Weight</option>
+        </select>
+
+        <button type="submit">Generate Plan</button>
+    </form>
+
+    {% if error_msg %}
+        <div class="error">{{ error_msg }}</div>
+    {% endif %}
+
+    {% if plan and week_data %}
+        <div class="week-nav">
+            <a class="week-btn {% if week_index == 1 %}active{% endif %}" href="{{ url_for('coach', week=1) }}">Week 1</a>
+            <a class="week-btn {% if week_index == 2 %}active{% endif %}" href="{{ url_for('coach', week=2) }}">Week 2</a>
+            <a class="week-btn {% if week_index == 3 %}active{% endif %}" href="{{ url_for('coach', week=3) }}">Week 3</a>
+            <a class="week-btn {% if week_index == 4 %}active{% endif %}" href="{{ url_for('coach', week=4) }}">Week 4</a>
+        </div>
+
+        <div class="card">
+            <h3>Week {{ week_data.week }}: {{ week_data.title }}</h3>
+
+            <div class="section">
+                <div class="section-title">Goals</div>
+                <ul>
+                    {% for g in week_data.goals %}
+                        <li>{{ g }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <div class="section">
+                <div class="section-title">Diet</div>
+                <ul>
+                    {% for d in week_data.diet %}
+                        <li>{{ d }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <div class="section">
+                <div class="section-title">Workout</div>
+                <ul>
+                    {% for w in week_data.workout %}
+                        <li>{{ w }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            {% if week_data.quote %}
+                <div class="quote">“{{ week_data.quote }}”</div>
+            {% endif %}
+
+            <div class="pager">
+                {% if week_index > 1 %}
+                    <a class="link-btn secondary" href="{{ url_for('coach', week=week_index-1) }}">← Previous</a>
+                {% else %}
+                    <span class="link-btn secondary" style="opacity:0.5; cursor:not-allowed;">← Previous</span>
+                {% endif %}
+
+                {% if week_index < 4 %}
+                    <a class="link-btn" href="{{ url_for('coach', week=week_index+1) }}">Next →</a>
+                {% else %}
+                    <span class="link-btn" style="opacity:0.5; cursor:not-allowed;">Next →</span>
+                {% endif %}
+            </div>
+        </div>
+    {% elif plan and not week_data %}
+        <div class="error">Plan loaded, but week data is missing. Please click “Generate Plan” again.</div>
+    {% endif %}
+
+</body>
+</html>

@@ -1,0 +1,18 @@
+# Virtual environment
+venv/
+Venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# DB files (don’t push)
+*.db
+
+# Secrets
+.env
+
+# Editor/OS
+.vscode/
+.DS_Store

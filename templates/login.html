@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login</title>
+    <style>
+        body {
+            font-family: Arial;
+            max-width: 720px;
+            margin: 30px auto;
+            padding: 16px;
+        }
+
+        /* Poster section */
+        .poster-wrap {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .poster-img {
+            width: 100%;
+            max-width: 720px;
+            border-radius: 14px;
+            border: 1px solid #ddd;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+        }
+
+        .poster-hint {
+            margin-top: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #1b3a6b;
+            background: #eef6ff;
+            display: inline-block;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid #cfe3ff;
+        }
+
+        /* Login form */
+        h2 {
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        input, button {
+            width: 100%;
+            padding: 8px;
+            margin-top: 8px;
+        }
+
+        button {
+            margin-top: 12px;
+        }
+
+        .error { color: red; }
+        .success { color: green; }
+        .info { color: #333; }
+
+        .links {
+            margin-top: 14px;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Poster + Hint -->
+    <div class="poster-wrap">
+        <img
+            src="{{ url_for('static', filename='images/login_poster.png') }}"
+            alt="BMI Calculator Poster"
+            class="poster-img"
+        >
+        <p class="poster-hint">
+             Check Your BMI → Get Smart Health Guidance
+        </p>
+    </div>
+
+    <!-- Login Form -->
+    <h2>Login</h2>
+
+    <form method="POST">
+        <label>Username</label>
+        <input type="text" name="username" placeholder="Enter username" required>
+
+        <label>Password</label>
+        <input type="password" name="password" placeholder="Enter password" required>
+
+        <button type="submit">Login</button>
+    </form>
+
+    <div class="links">
+        <a href="{{ url_for('register') }}">Register</a> |
+        <a href="{{ url_for('forgot') }}">Forgot password?</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <div class="{{ category }}">{{ message }}</div>
+        {% endfor %}
+    {% endwith %}
+
+</body>
+</html>

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Forgot Password</title>
+    <style>
+        body { font-family: Arial; max-width: 480px; margin: 40px auto; padding: 16px; }
+        input, button { width: 100%; padding: 8px; margin-top: 8px; }
+        .error { color: red; }
+        .info { color: #333; }
+    </style>
+</head>
+<body>
+    <h2>Forgot Password</h2>
+    <p>Enter your email to receive a password reset link.</p>
+
+    <form method="POST">
+        <label>Email</label>
+        <input type="email" name="email" placeholder="Enter your email" required>
+        <button type="submit">Send Reset Link</button>
+    </form>
+
+    <p style="margin-top:12px;"><a href="{{ url_for('login') }}">Back to login</a></p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <div class="{{ category }}">{{ message }}</div>
+        {% endfor %}
+    {% endwith %}
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Register</title>
+    <style>
+        body { font-family: Arial; max-width: 480px; margin: 40px auto; padding: 16px; }
+        input, button { width: 100%; padding: 8px; margin-top: 8px; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h2>Register</h2>
+
+    <form method="POST">
+        <label>Username</label>
+        <input type="text" name="username" placeholder="Choose username" required>
+
+        <label>Email</label>
+        <input type="email" name="email" placeholder="Enter email" required>
+
+        <label>Password</label>
+        <input type="password" name="password" placeholder="At least 6 chars, upper, lower, number" required>
+
+        <button type="submit">Create Account</button>
+    </form>
+
+    <p style="margin-top:12px;">
+        Already have an account? <a href="{{ url_for('login') }}">Login</a>
+    </p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <div class="{{ category }}">{{ message }}</div>
+        {% endfor %}
+    {% endwith %}
+</body>
+</html>

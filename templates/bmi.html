@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BMI Calculator</title>
+    <style>
+        body { font-family: Arial; max-width: 720px; margin: 30px auto; padding: 12px; }
+        input, button { width: 100%; padding: 8px; margin-top: 8px; }
+        .result { margin-top: 12px; padding: 10px; border-radius: 8px; border: 1px solid #ddd; }
+        .red { color: #d9534f; }
+        .small { font-size: 0.9rem; color: #666; }
+        .history { margin-top: 20px; border-top: 1px solid #ddd; padding-top: 12px; }
+
+        .top-actions { margin: 10px 0 18px 0; display: flex; gap: 10px; flex-wrap: wrap; }
+        .link-btn {
+            display: inline-block;
+            padding: 10px 14px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #000;
+            background: #fff;
+        }
+        .link-btn.secondary { border-color: #bbb; color: #333; }
+        .link-btn.danger { border-color: #d9534f; color: #d9534f; }
+    </style>
+</head>
+<body>
+
+    <h2>BMI Calculator</h2>
+    <p>Logged in as: <strong>{{ username }}</strong></p>
+
+    <div class="top-actions">
+        <a class="link-btn" href="{{ url_for('coach') }}">🤖 AI Coach</a>
+        <a class="link-btn secondary" href="{{ url_for('dashboard') }}">← Dashboard</a>
+        <a class="link-btn danger" href="{{ url_for('logout') }}">Logout</a>
+    </div>
+
+    <form method="POST">
+        <label>Weight (kg)</label>
+        <input name="weight" type="number" step="0.1" required>
+
+        <label>Height (m)</label>
+        <input name="height" type="number" step="0.01" required>
+
+        <button type="submit">Calculate & Save</button>
+    </form>
+
+    {% if error %}
+        <div class="result red">{{ error }}</div>
+    {% endif %}
+
+    {% if bmi_result %}
+        <div class="result">
+            <strong>Today's BMI:</strong> {{ bmi_result }} — {{ category }}
+        </div>
+    {% endif %}
+
+    {% if bmi_result and normal_min_weight and normal_max_weight %}
+        <div class="result">
+            <strong>Normal BMI target weight (18.5–24.9):</strong>
+            {{ normal_min_weight }} kg to {{ normal_max_weight }} kg
+
+            <div class="small" style="margin-top:6px;">
+                At your height, if your weight is <strong>{{ normal_max_weight }} kg</strong>,
+                your BMI will be about <strong>24.9</strong> (Normal upper limit).
+            </div>
+
+            {% if weight_to_lose %}
+                <div class="small" style="margin-top:6px;">
+                    <strong>To reach normal:</strong> lose about {{ weight_to_lose }} kg
+                </div>
+            {% endif %}
+
+            {% if weight_to_gain %}
+                <div class="small" style="margin-top:6px;">
+                    <strong>To reach normal:</strong> gain about {{ weight_to_gain }} kg
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    {% if yesterday_entry %}
+        <div class="result">
+            <strong>Yesterday's BMI:</strong> {{ yesterday_entry.bmi }} — {{ yesterday_entry.category }}
+            <div class="small">Recorded at {{ yesterday_entry.timestamp }}</div>
+        </div>
+    {% endif %}
+
+    <div class="history">
+        <h3>History (most recent first)</h3>
+
+        {% if history %}
+            {% for h in history %}
+                <div style="padding:10px 0;border-bottom:1px solid #eee;">
+                    <div><strong>BMI:</strong> {{ h.bmi }} — {{ h.category }}</div>
+                    <div class="small">Weight: {{ h.weight }} kg | Height: {{ h.height }} m</div>
+                    <div class="small">At: {{ h.timestamp }}</div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p class="small">No entries yet.</p>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('clear_history') }}" style="margin-top:12px;">
+            <button type="submit">Clear history</button>
+        </form>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <div class="result {{ category }}">{{ message }}</div>
+        {% endfor %}
+    {% endwith %}
+
+</body>
+</html>

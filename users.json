@@ -1,0 +1,40 @@
+{
+  "gangadharvarma09@gmail.com": {
+    "password_hash": "scrypt:32768:8:1$GIo6dJnoH16yw4oD$b9c67cd030f7a4bdcc9b1616aa56e9a403a64ee549c1f21f5732ae9272bca7c26ec4143fc0188b0a8daae39dc44ac1e80ce2db9a9fd78999b3912d324419f191",
+    "history": [
+      {
+        "timestamp": "2025-12-10T22:31:03.755459Z",
+        "weight": 65.0,
+        "height": 170.0,
+        "bmi": 0.0,
+        "category": "Underweight"
+      },
+      {
+        "timestamp": "2025-12-10T22:31:25.127428Z",
+        "weight": 65.0,
+        "height": 1.7,
+        "bmi": 22.49,
+        "category": "Normal weight"
+      }
+    ]
+  },
+  "satya": {
+    "password_hash": "scrypt:32768:8:1$bZ495y0agk10f42H$08df5607f1f79f2b003fe380f7386b23735cc8319d60f3c5cc18bc62e6b2ea0937709ca6ca40bf0af8d0bebb8c1b53d81eb7af94d4eb30bbc5eebaf1a1ffa553",
+    "history": [
+      {
+        "timestamp": "2025-12-10T22:32:54.868190Z",
+        "weight": 77.0,
+        "height": 1.63,
+        "bmi": 28.98,
+        "category": "Overweight"
+      },
+      {
+        "timestamp": "2025-12-10T22:33:12.235092Z",
+        "weight": 90.0,
+        "height": 1.6,
+        "bmi": 35.16,
+        "category": "Obese"
+      }
+    ]
+  }
+}
