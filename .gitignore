@@ -1,20 +1,8 @@
-# Virtual environment
-venv/
-Venv/
-.venv/
-
-# Python cache
+﻿.venv/
 __pycache__/
 *.pyc
-
-# DB files (don’t push)
 *.db
-
-# Secrets
 .env
-
-# Editor/OS
-.vscode/
 .DS_Store
 *.docx
 ~$*.docx

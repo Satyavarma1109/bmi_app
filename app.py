@@ -8,7 +8,8 @@ import smtplib
 import os
 from email.message import EmailMessage
 
-from ai_coach import generate_bmi_coach_plan
+from ai_coach import generate_bmi_coach_plan, ask_ai_coach
+
 
 # ---------------- CONFIG ----------------
 APP_SECRET = os.environ.get("APP_SECRET", "change-me-to-a-random-string")
@@ -71,6 +72,17 @@ def init_db():
     )
     """)
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS coach_plans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        goal TEXT NOT NULL,
+        plan_text TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -89,6 +101,11 @@ def is_valid_password(password):
     if not re.search(r"[0-9]", password):
         return False
     return True
+
+
+# IMPORTANT FIX: Avoid scrypt error on some Windows builds
+def hash_password(password: str) -> str:
+    return generate_password_hash(password, method="pbkdf2:sha256", salt_length=16)
 
 
 # ---------------- Email helper ----------------
@@ -124,6 +141,82 @@ def send_email(to_email, subject, body):
         print(body)
 
 
+# ---------------- AI helpers ----------------
+def split_plan_into_weeks(plan_text: str) -> dict:
+    """
+    Takes AI plan text and returns dict: {1: "...", 2: "...", 3: "...", 4: "..."}.
+    Much more tolerant about the exact heading format.
+    """
+    import re
+
+    if not isinstance(plan_text, str):
+        plan_text = str(plan_text)
+
+    text = plan_text.replace("\r\n", "\n")
+    pattern = re.compile(r"(week\s*([1-4])\s*[:\-]?)", re.IGNORECASE)
+    matches = list(pattern.finditer(text))
+
+    weeks = {1: "", 2: "", 3: "", 4: ""}
+
+    if not matches:
+        weeks[1] = text.strip()
+        return weeks
+
+    for i, match in enumerate(matches):
+        week_num_str = match.group(2)
+        try:
+            week_num = int(week_num_str)
+        except (TypeError, ValueError):
+            continue
+
+        start_idx = match.end()
+        end_idx = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+
+        section = text[start_idx:end_idx].strip()
+        if section:
+            weeks[week_num] = section
+
+    if not any(weeks.values()):
+        weeks[1] = text.strip()
+
+    return weeks
+
+
+def get_latest_bmi(user_id: int):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT bmi FROM bmi_history WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1",
+        (user_id,)
+    )
+    row = cur.fetchone()
+    conn.close()
+    return row["bmi"] if row else None
+
+
+def get_latest_bmi_row(user_id: int):
+    """Returns latest BMI row (weight/height/bmi/category/timestamp) or None."""
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT * FROM bmi_history WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1",
+        (user_id,)
+    )
+    row = cur.fetchone()
+    conn.close()
+    return row
+
+
+def compute_category(bmi: float) -> str:
+    if bmi < 18.5:
+        return "Underweight"
+    elif bmi < 25:
+        return "Normal"
+    elif bmi < 30:
+        return "Overweight"
+    return "Obese"
+
+
 # ---------------- Routes ----------------
 @app.route("/")
 def root():
@@ -144,13 +237,15 @@ def register():
             flash("Password must be at least 6 chars and include upper, lower, and number.", "error")
             return render_template("register.html")
 
-        password_hash = generate_password_hash(password)
+        password_hash = hash_password(password)
 
         conn = get_db()
         cur = conn.cursor()
         try:
-            cur.execute("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
-                        (username, email, password_hash))
+            cur.execute(
+                "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
+                (username, email, password_hash)
+            )
             conn.commit()
 
             cur.execute("SELECT id FROM users WHERE username = ?", (username,))
@@ -168,7 +263,6 @@ def register():
                 flash("Username or email already exists.", "error")
         finally:
             conn.close()
-
     return render_template("register.html")
 
 
@@ -194,6 +288,12 @@ def login():
 
         session["user_id"] = user["id"]
         session["username"] = user["username"]
+
+        session.pop("coach_plan_text", None)
+        session.pop("coach_weeks", None)
+        session.pop("coach_goal", None)
+        session.pop("coach_chat", None)
+
         return redirect(url_for("dashboard"))
 
     return render_template("login.html")
@@ -216,18 +316,21 @@ def forgot():
         cur = conn.cursor()
         cur.execute("SELECT id, username FROM users WHERE email = ?", (email,))
         user = cur.fetchone()
-
         if user:
             token = secrets.token_urlsafe(32)
             expires_at = (datetime.utcnow() + timedelta(minutes=TOKEN_EXPIRATION_MINUTES)).isoformat()
-            cur.execute("INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)",
-                        (user["id"], token, expires_at))
+            cur.execute(
+                "INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)",
+                (user["id"], token, expires_at)
+            )
             conn.commit()
 
             reset_url = url_for("reset_password", token=token, _external=True)
-            email_body = f"Hi {user['username']},\n\nReset your password (valid {TOKEN_EXPIRATION_MINUTES} min):\n{reset_url}"
+            email_body = (
+                f"Hi {user['username']},\n\n"
+                f"Reset your password (valid {TOKEN_EXPIRATION_MINUTES} min):\n{reset_url}"
+            )
             send_email(email, "Password Reset", email_body)
-
         conn.close()
         flash("If that email exists in our system, a reset link has been sent.", "info")
         return redirect(url_for("login"))
@@ -242,7 +345,6 @@ def reset_password(token):
     cur = conn.cursor()
     cur.execute("SELECT id, user_id, expires_at, used FROM password_resets WHERE token = ?", (token,))
     row = cur.fetchone()
-
     if not row:
         conn.close()
         flash("Invalid or expired reset link.", "error")
@@ -258,14 +360,14 @@ def reset_password(token):
         new_pw = request.form["password"]
         if not is_valid_password(new_pw):
             flash("Password must be at least 6 chars and include upper, lower, and number.", "error")
+            conn.close()
             return render_template("reset.html")
 
-        pw_hash = generate_password_hash(new_pw)
+        pw_hash = hash_password(new_pw)
         cur.execute("UPDATE users SET password_hash = ? WHERE id = ?", (pw_hash, row["user_id"]))
         cur.execute("UPDATE password_resets SET used = 1 WHERE id = ?", (row["id"],))
         conn.commit()
         conn.close()
-
         flash("Password reset successfully. You can now login.", "success")
         return redirect(url_for("login"))
 
@@ -281,80 +383,19 @@ def dashboard():
     return render_template("dashboard.html", username=session["username"])
 
 
-# ---------- AI COACH (WEEK-BY-WEEK) ----------
-@app.route("/coach", methods=["GET", "POST"])
-def coach():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    plan = None
-    error_msg = None
-
-    # Which week to show (1..4)
-    week_index = int(request.args.get("week", 1))
-    if week_index < 1:
-        week_index = 1
-    if week_index > 4:
-        week_index = 4
-
-    if request.method == "POST":
-        goal = request.form.get("goal", "lose weight")
-
-        # Get latest BMI for this user
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT bmi FROM bmi_history WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1",
-            (session["user_id"],)
-        )
-        row = cur.fetchone()
-        conn.close()
-
-        if row:
-            plan = generate_bmi_coach_plan(session["username"], row["bmi"], goal)
-
-            # If AI returns an error dict
-            if isinstance(plan, dict) and plan.get("error"):
-                error_msg = plan["error"]
-                plan = None
-            else:
-                # Save full plan in session so week navigation does not call AI again
-                session["coach_plan"] = plan
-                session["coach_goal"] = goal
-        else:
-            error_msg = "Please calculate your BMI at least once before using AI Coach."
-
-    # If user clicks week buttons (GET request), reuse saved plan
-    if plan is None and "coach_plan" in session:
-        plan = session["coach_plan"]
-
-    # Select the week to display
-    week_data = None
-    if plan and isinstance(plan, dict) and "weeks" in plan and len(plan["weeks"]) >= 4:
-        week_data = plan["weeks"][week_index - 1]
-
-    return render_template(
-        "coach.html",
-        plan=plan,
-        week_data=week_data,
-        week_index=week_index,
-        error_msg=error_msg
-    )
-
-
 # ---------- BMI CALCULATOR ----------
 @app.route("/bmi", methods=["GET", "POST"])
 def bmi_page():
     if "user_id" not in session:
         return redirect(url_for("login"))
 
+    user_id = session["user_id"]
+
     error = None
     bmi_result = None
     category = None
-    history = []
     yesterday_entry = None
 
-    # Target normal-weight info
     normal_min_weight = None
     normal_max_weight = None
     weight_to_lose = None
@@ -372,17 +413,8 @@ def bmi_page():
                 raise ValueError("Weight and height must be positive numbers.")
 
             bmi = round(weight / (height ** 2), 2)
+            cat = compute_category(bmi)
 
-            if bmi < 18.5:
-                cat = "Underweight"
-            elif bmi < 25:
-                cat = "Normal"
-            elif bmi < 30:
-                cat = "Overweight"
-            else:
-                cat = "Obese"
-
-            # Normal BMI target weights for this height
             normal_min_weight = round(18.5 * (height ** 2), 1)
             normal_max_weight = round(24.9 * (height ** 2), 1)
 
@@ -398,22 +430,46 @@ def bmi_page():
             timestamp = datetime.utcnow().isoformat()
             cur.execute(
                 "INSERT INTO bmi_history (user_id, weight, height, bmi, category, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
-                (session["user_id"], weight, height, bmi, cat, timestamp)
+                (user_id, weight, height, bmi, cat, timestamp)
             )
             conn.commit()
 
             bmi_result = bmi
             category = cat
 
-        except Exception:
+        except Exception as e:
             error = "Invalid input. Make sure weight/height are valid numbers."
+            print("BMI ERROR:", e)
 
-    # Fetch history
-    cur.execute("SELECT * FROM bmi_history WHERE user_id = ? ORDER BY timestamp DESC", (session["user_id"],))
+    # Always fetch history (for chart + yesterday)
+    cur.execute(
+        "SELECT * FROM bmi_history WHERE user_id = ? ORDER BY timestamp DESC",
+        (user_id,)
+    )
     rows = cur.fetchall()
-    history = rows
 
-    # Fetch yesterday's BMI
+    # If user just opened page (GET) OR POST didn't compute, show latest saved BMI
+    if bmi_result is None and rows:
+        latest = rows[0]
+        bmi_result = latest["bmi"]
+        category = latest["category"]
+
+        height = latest["height"]
+        weight = latest["weight"]
+
+        normal_min_weight = round(18.5 * (height ** 2), 1)
+        normal_max_weight = round(24.9 * (height ** 2), 1)
+
+        if bmi_result >= 25:
+            weight_to_lose = round(weight - normal_max_weight, 1)
+            if weight_to_lose < 0:
+                weight_to_lose = 0.0
+        elif bmi_result < 18.5:
+            weight_to_gain = round(normal_min_weight - weight, 1)
+            if weight_to_gain < 0:
+                weight_to_gain = 0.0
+
+    # Yesterday entry
     if rows:
         today = datetime.utcnow().date()
         for r in rows:
@@ -424,18 +480,31 @@ def bmi_page():
 
     conn.close()
 
+    # Chart data (oldest -> newest looks better)
+    chart_dates = []
+    chart_bmis = []
+    for r in reversed(rows):
+        try:
+            dt = datetime.fromisoformat(r["timestamp"])
+            chart_dates.append(dt.strftime("%b %d"))
+        except Exception:
+            chart_dates.append(r["timestamp"][:10])
+        chart_bmis.append(r["bmi"])
+
     return render_template(
         "bmi.html",
         username=session["username"],
         error=error,
         bmi_result=bmi_result,
         category=category,
-        history=history,
+        history=rows,
         yesterday_entry=yesterday_entry,
         normal_min_weight=normal_min_weight,
         normal_max_weight=normal_max_weight,
         weight_to_lose=weight_to_lose,
-        weight_to_gain=weight_to_gain
+        weight_to_gain=weight_to_gain,
+        chart_dates=chart_dates,
+        chart_bmis=chart_bmis
     )
 
 
@@ -451,6 +520,115 @@ def clear_history():
     conn.close()
     flash("History cleared.", "info")
     return redirect(url_for("bmi_page"))
+
+
+# ---------- AI COACH (PLAN + LIVE CHAT) ----------
+@app.route("/coach", methods=["GET", "POST"])
+def coach():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    week = request.args.get("week", "1")
+    try:
+        week = int(week)
+    except:
+        week = 1
+    if week not in [1, 2, 3, 4]:
+        week = 1
+
+    plan_text = session.get("coach_plan_text")
+    weeks = session.get("coach_weeks")
+    goal_saved = session.get("coach_goal", "lose weight")
+    chat = session.get("coach_chat", [])
+    error_msg = None
+
+    # If no plan in session, try loading from DB
+    if not plan_text:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT goal, plan_text FROM coach_plans WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
+            (session["user_id"],)
+        )
+        row = cur.fetchone()
+        conn.close()
+
+        if row:
+            plan_text = row["plan_text"]
+            goal_saved = row["goal"]
+            session["coach_plan_text"] = plan_text
+            session["coach_goal"] = goal_saved
+
+            parsed = split_plan_into_weeks(plan_text)
+            session["coach_weeks"] = {str(k): v for k, v in parsed.items()}
+            weeks = session["coach_weeks"]
+
+    if request.method == "POST":
+        action = request.form.get("action", "")
+        goal = request.form.get("goal", goal_saved)
+        session["coach_goal"] = goal
+
+        latest_bmi = get_latest_bmi(session["user_id"])
+        if latest_bmi is None:
+            error_msg = "Please calculate your BMI at least once before using AI Coach."
+        else:
+            if action == "generate":
+                plan_text = generate_bmi_coach_plan(session["username"], latest_bmi, goal)
+                session["coach_plan_text"] = plan_text
+
+                conn = get_db()
+                cur = conn.cursor()
+                cur.execute(
+                    "INSERT INTO coach_plans (user_id, goal, plan_text, created_at) VALUES (?, ?, ?, ?)",
+                    (session["user_id"], goal, plan_text, datetime.utcnow().isoformat())
+                )
+                conn.commit()
+                conn.close()
+
+                parsed = split_plan_into_weeks(plan_text)
+                session["coach_weeks"] = {str(k): v for k, v in parsed.items()}
+
+                session["coach_chat"] = []
+                chat = []
+
+            elif action == "ask":
+                question = request.form.get("question", "").strip()
+                if not question:
+                    error_msg = "Type a question first."
+                else:
+                    answer = ask_ai_coach(
+                        question=question,
+                        name=session["username"],
+                        bmi=latest_bmi,
+                        goal=goal,
+                        week=week
+                    )
+
+                    chat.append({"role": "user", "content": question})
+                    chat.append({"role": "assistant", "content": answer})
+
+                    if len(chat) > 20:
+                        chat = chat[-20:]
+
+                    session["coach_chat"] = chat
+
+    if isinstance(weeks, dict):
+        current_week_text = weeks.get(str(week)) or weeks.get(week) or ""
+    else:
+        current_week_text = ""
+
+    if not current_week_text and plan_text:
+        current_week_text = plan_text
+
+    return render_template(
+        "coach.html",
+        plan_text=plan_text,
+        goal=goal_saved,
+        week=week,
+        week_text=current_week_text,
+        chat=chat,
+        error_msg=error_msg
+    )
 
 
 # ---------------- RUN ----------------

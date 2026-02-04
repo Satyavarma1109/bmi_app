@@ -3,9 +3,23 @@
 <head>
     <title>Dashboard</title>
     <style>
-        body { font-family: Arial; max-width: 700px; margin: 60px auto; padding: 16px; }
-        .card { border: 1px solid #e5e5e5; border-radius: 10px; padding: 22px; }
-        .actions { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
+        body { 
+            font-family: Arial; 
+            max-width: 700px; 
+            margin: 60px auto; 
+            padding: 16px; 
+        }
+        .card { 
+            border: 1px solid #e5e5e5; 
+            border-radius: 10px; 
+            padding: 22px; 
+        }
+        .actions { 
+            margin-top: 18px; 
+            display: flex; 
+            gap: 10px; 
+            flex-wrap: wrap; 
+        }
         a.button {
             display: inline-block;
             padding: 10px 14px;
@@ -14,16 +28,41 @@
             text-decoration: none;
             color: #000;
         }
-        a.button.secondary { border-color: #bbb; color: #333; }
-        .flash { margin-top: 16px; padding: 10px 12px; border-radius: 8px; border: 1px solid #ddd; }
+        a.button.secondary { 
+            border-color: #bbb; 
+            color: #333; 
+        }
+        .flash { 
+            margin-top: 16px; 
+            padding: 10px 12px; 
+            border-radius: 8px; 
+            border: 1px solid #ddd; 
+        }
         .flash.success { border-color: #b7e3c1; }
         .flash.error { border-color: #f2b8b5; }
         .flash.info { border-color: #b8d7f2; }
+        
+        /* Image styling */
+        .bmi-image {
+    width: 100%;
+    max-width: 600px;
+    display: block;
+    margin: 20px auto;
+    border-radius: 12px;
+}
+
     </style>
 </head>
 <body>
+
     <div class="card">
         <h2>Welcome, {{ username }}</h2>
+
+        <!-- BMI METER IMAGE HERE -->
+        <img src="{{ url_for('static', filename='images/bmi_meter.png') }}"
+             alt="BMI Meter"
+             class="bmi-image">
+
         <p>Select what you want to do:</p>
 
         <div class="actions">
@@ -37,5 +76,6 @@
             {% endfor %}
         {% endwith %}
     </div>
+
 </body>
 </html>
