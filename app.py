@@ -630,6 +630,14 @@ def coach():
         error_msg=error_msg
     )
 
+@app.route("/health")
+def health():
+    return {
+        "status": "ok",
+        "openrouter_key_present": bool(
+            os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        )
+    }
 
 # ---------------- RUN ----------------
 if __name__ == "__main__":
