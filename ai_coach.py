@@ -9,6 +9,10 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 # Default model (you can change later)
 DEFAULT_MODEL = os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3.1-8b-instruct")
 
+# (Optional) Set this in Render as your deployed URL, e.g.:
+# APP_URL=https://bmi-app.onrender.com
+APP_URL = os.environ.get("APP_URL", "http://localhost:5000")
+
 
 def _get_openrouter_key() -> Optional[str]:
     """
@@ -23,15 +27,19 @@ def _call_openrouter(messages, temperature: float = 0.7, max_tokens: int = 900) 
     """
     api_key = _get_openrouter_key()
 
+    # Safe debug (does NOT print the key)
+    print("OPENROUTER_API_KEY present:", bool(api_key), "| MODEL:", DEFAULT_MODEL, "| APP_URL:", APP_URL)
+
     if not api_key:
-        return "AI Coach is unavailable: OPENROUTER_API_KEY is not set in your terminal."
+        return "AI Coach is unavailable: OPENROUTER_API_KEY is not set in Render Environment Variables."
 
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
 
-        # Recommended by OpenRouter (helps tracking; safe to keep)
-        "HTTP-Referer": "http://localhost:5000",
+        # Recommended by OpenRouter (helps tracking)
+        # Use your deployed URL on Render (not localhost)
+        "HTTP-Referer": APP_URL,
         "X-Title": "BMI App AI Coach",
     }
 
