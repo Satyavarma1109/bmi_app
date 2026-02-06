@@ -15,10 +15,9 @@ APP_URL = os.environ.get("APP_URL", "http://localhost:5000")
 
 
 def _get_openrouter_key() -> Optional[str]:
-    """
-    Read key from env. (Also supports OPENAI_API_KEY as a fallback so it's easier for you.)
-    """
-    return os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    print("OPENROUTER_API_KEY present:", bool(key))
+    return key
 
 
 def _call_openrouter(messages, temperature: float = 0.7, max_tokens: int = 900) -> str:
